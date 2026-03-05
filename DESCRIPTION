@@ -23,3 +23,5 @@ Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+URL: https://github.com/LasseThorup1/RankedCoalescent
+BugReports: https://github.com/LasseThorup1/RankedCoalescent/issues
