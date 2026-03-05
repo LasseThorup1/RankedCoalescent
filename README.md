@@ -4,15 +4,31 @@ R package for working with ranked, unlabeled, rooted, and bifurcating tree shape
 
 ## Installation
 
-If necessary install package dependencies: fmatrix, PhaseTypeR, rlist, dplyr
+If necessary install package dependencies from CRAN: PhaseTypeR, rlist, dplyr
 
-Load devtools using library(devtools)
+```r
+install.packages(c("ape","spam","devtools","rlist","dplyr","PhaseTypeR"))
+```
+
+Load devtools
+
+```r
+library(devtools)
+```
+
+Install GitHub dependencies if necessary: fmatrix, phylodyn
+
+
+```r
+install_github("mdkarcher/phylodyn")
+install_github("RSamyak/fmatrix")
+```
+
 
 Install RankedCoalescent using
 
 ```r
-# Update this
-remotes::install_github("LasseThorup1/RankedCoalescent")
+install_github("LasseThorup1/RankedCoalescent")
 ```
 
 ## Vignettes
