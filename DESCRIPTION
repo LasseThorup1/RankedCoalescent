@@ -1,0 +1,25 @@
+Package: RankedCoalescent
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    c(person(given = "Lasse", family = "Fallesen", middle = "Thorup", email = "thorup@math.au.dk", role = c("aut", "cre")),
+    person(given = "Simon", family = "Pauli", email = "simon.pauli@jku.at", role = "aut"))
+Description: Provides tools for Markov embedding of ranked and unlabeled evolutionary trees.
+	The package extends the 'fmatrix' package; see "https://github.com/RSamyak/fmatrix/tree/main".
+	It provides the necessary tools to seamlessly translate between the F-matrix and path representation presented in NAME OF PAPER HERE.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+	fmatrix,
+	rlist,
+	PhaseTypeR,
+	dplyr
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: 
+    R (>= 3.5)
+LazyData: true
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

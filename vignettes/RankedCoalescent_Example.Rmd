@@ -1,0 +1,159 @@
+---
+title: "RankedCoalescent_Example"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{RankedCoalescent_Example}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+# Overview 
+
+The "RankedCoalescent" package provides tools for working with ranked, unlabeled,
+rooted bifurcating tree shapes. It embeds the space of these tree shapes in a
+Markov chain, and using these methods, one can compute Fréchet mean trees, 
+perform statistical tests of neutral coalescence/branching, and simulate trees
+from either the Blum-Francois or structured coalescent model.
+
+# Load package
+
+```{r setup}
+library(RankedCoalescent)
+library(fmatrix) #needed for plotting the trees. fmatrix::plotF.list() gives error
+```
+
+# Set up variables
+
+```{r}
+binM25 <- load_binM25()
+diffM25 <- load_diffM25()
+ndiff25 <- load_ndiff25()
+```
+
+# Generate state space and transition probabilities
+
+```{r}
+n <- 15
+RankedCoalSeq <- ranked_coal_seq(n)
+StSpM <- RankedCoalSeq$StSpM
+SeqProbs <- RankedCoalSeq$seqProbs
+```
+
+# Computing moments
+
+```{r}
+Tiers <- make_Tiers(StSpM)
+IndexList <- non_fixed_indices(n)
+RewardMatrixF <- reward_matrix_F(StSpM, Tiers, IndexList)
+InitDist <- initial_distribution(StSpM)
+LeftProducts <- left_products_seq(InitDist, SeqProbs, RewardMatrixF, Tiers, IndexList)
+RightProducts <- right_products_seq(SeqProbs, RewardMatrixF, Tiers, IndexList)
+#Compute MeanTree and mean and covariance of non-fixed entries
+MeanTree <- mean_tree_DPH(n, LeftProducts, IndexList)
+MeanTreeNoFixed <- mean_tree_DPH_nofixed(LeftProducts, IndexList)
+CovMat <- covariance_matrix_F(LeftProducts, RightProducts, IndexList, RewardMatrixF)
+```
+
+
+# Find Kingman Fréchet means for n = 15
+
+```{r}
+#Compute cost tiers and antecedents
+CostTiers <- make_cost_tiers(Tiers, StSpM, MeanTree)
+AntecedentList <- ranked_coal_list(n,TRUE)$AntecedentList
+FréchetCostAndTrees <- ViTreebi(n, AntecedentList, StSpM, CostTiers, Tiers)
+Cost <- FréchetCostAndTrees$MinCost
+FréchetFmat1 <- path_to_Fmat(FréchetCostAndTrees$FrechetPaths[[1]], StSpM) 
+FréchetFmat2 <- path_to_Fmat(FréchetCostAndTrees$FrechetPaths[[2]], StSpM)
+#Visualize Fréchet means
+plotF.list(list(FréchetFmat1,FréchetFmat2))
+```
+
+# Generate a sample of 1000 trees from the Blum-Francois model and Island model
+
+```{r}
+set.seed(42)
+#Sample trees from Blum-Francois model and Island model
+FsampleFromBF <- gen_Fmats_from_BF(-0.2, m = 1000, n)
+FsampleFromIslandModel <- rRankedIslandCoal(m = 1000, n, K = 2, migrationRate = 0.5, startDist = c(12, 3))
+```
+
+# Test neutrality via non fixed entries
+
+```{r}
+eigenSigma <- eigen(CovMat)
+Sigma0invsqrt <- eigenSigma$vectors %*% diag(sqrt(1/eigenSigma$values)) %*% t(eigenSigma$vectors) 
+wald_test_F(FsampleFromBF, MeanTreeNoFixed, Sigma0invsqrt, IndexList)
+wald_test_F(FsampleFromIslandModel, MeanTreeNoFixed, Sigma0invsqrt, IndexList)
+```
+
+# Fréchet mean(s) of sampled trees
+
+```{r}
+MeanBF <- meanF_from_sample(FsampleFromBF)
+MeanIsland <- meanF_from_sample(FsampleFromIslandModel)
+CostTiersBF <- make_cost_tiers(Tiers, StSpM, MeanBF)
+CostTiersIsland <- make_cost_tiers(Tiers, StSpM, MeanIsland)
+
+ViTreebiBF <- ViTreebi(n, AntecedentList, StSpM, CostTiersBF, Tiers)
+ViTreebiIsland <- ViTreebi(n, AntecedentList, StSpM, CostTiersIsland, Tiers)
+
+nFrechetBF <- length(ViTreebiBF$FrechetPaths)
+nFrechetIsland <- length(ViTreebiIsland$FrechetPaths)
+FrechetBF <- list() ; FrechetIsland <- list()
+for(i in 1:nFrechetBF){FrechetBF[[i]] <- path_to_Fmat(ViTreebiBF$FrechetPaths[[i]], StSpM)}
+for(i in 1:nFrechetIsland){FrechetIsland[[i]] <- path_to_Fmat(ViTreebiIsland$FrechetPaths[[i]], StSpM)}
+
+plotF.list(FrechetBF)
+plotF.list(FrechetIsland)
+```
+
+
+# Computing distribution of external branch length
+
+```{r}
+RankedBCP <- bcp_coal(n)
+StSpMBCP <- RankedBCP$StSpM
+ProbMBCP <- RankedBCP$ProbM
+RewardE <- reward_E_BCP(StSpMBCP)
+BCPDPH <- PhaseTypeR::DPH(ProbMBCP,c(1,rep(0,nrow(ProbMBCP)-1)))
+EDPH <- DPH_E(BCPDPH, RewardE)
+MinE <- min_E(n) ; MaxE <- max_E(n)
+DistE <- dist_E(EDPH$subint_mat, EDPH$init_probs, MinE, MaxE)
+plot(MinE:MaxE, DistE, type = "h")
+points(MinE:MaxE, DistE, pch = 16, col = "red")
+```
+
+# Test neutrality based on external branch length
+
+```{r}
+binnedProbs <- binned_probs_E(length(FsampleFromBF), DistE)
+Bins <- binnedProbs$Bins ; ExpectedBinned <- binnedProbs$ExpectedBinned
+GoF_E(FsampleFromBF, Bins, ExpectedBinned, MinE, MaxE)
+GoF_E(FsampleFromIslandModel, Bins, ExpectedBinned, MinE, MaxE)
+```
+
+# Test neutrality based on balance indices
+
+```{r}
+Mu0SE <- c(mean_S(MeanTreeNoFixed), mean_E(MeanTree))
+Sigma0SE <- covariance_matrix_SE(CovMat, IndexList)
+Sigma0SEInvSqrt <- eigen(Sigma0SE)$vectors %*% diag(1/sqrt(eigen(Sigma0SE)$values)) %*% t(eigen(Sigma0SE)$vectors)
+wald_test_SE(FsampleFromBF, Mu0SE, Sigma0SEInvSqrt, IndexList)
+wald_test_SE(FsampleFromIslandModel, Mu0SE, Sigma0SEInvSqrt, IndexList)
+```
+
+# Summary
+
+The RankedCoalescent package provides tools for analysing ranked tree shapes.
+This vignette demonstrated how to compute theoretical moments, simulate trees,
+estimate Fréchet means, and perofrm neutrality tests based on several statistics.
+
