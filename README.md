@@ -12,7 +12,7 @@ Install RankedCoalescent using
 
 ```r
 # Update this
-remotes::install_github("lassethorup97/RankedCoalescent")
+remotes::install_github("LasseThorup1/RankedCoalescent")
 ```
 
 ## Vignettes
