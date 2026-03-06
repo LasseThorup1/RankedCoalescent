@@ -69,8 +69,8 @@ ranked_coal <- function(n,prob=TRUE){
   #-----------------------------------------------------------------------
   prob <- toBool(prob)
   n <- checkN(n)
-  if(!diff_matrix_big_enough(nInput)){
-    a <- preload_binary_matrices(nInput)
+  if(!diff_matrix_big_enough(n)){
+    a <- preload_binary_matrices(n)
     binM25 <- a[[1]]
     diffM25 <- a[[2]]
     ndiff25 <- a[[3]]
@@ -164,8 +164,8 @@ ranked_coal <- function(n,prob=TRUE){
 ranked_coal_list <- function(n,ChildAndProb=FALSE,TierInd=FALSE){
   ChildAndProb <- toBool(ChildAndProb); TierInd <- toBool(TierInd)
   n <- checkN(n,upper=Inf)
-  if(!diff_matrix_big_enough(nInput)){
-    a <- preload_binary_matrices(nInput)
+  if(!diff_matrix_big_enough(n)){
+    a <- preload_binary_matrices(n)
     binM25 <- a[[1]]
     diffM25 <- a[[2]]
     ndiff25 <- a[[3]]
@@ -334,8 +334,8 @@ seq_probM_to_probM <- function(seqProb){
 
 ranked_coal_StSpM_only <- function(n){
   n <- checkN(n)
-  if(!diff_matrix_big_enough(nInput)){
-    a <- preload_binary_matrices(nInput)
+  if(!diff_matrix_big_enough(n)){
+    a <- preload_binary_matrices(n)
     binM25 <- a[[1]]
     diffM25 <- a[[2]]
     ndiff25 <- a[[3]]
