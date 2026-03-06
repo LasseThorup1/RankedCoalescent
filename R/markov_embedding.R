@@ -26,7 +26,7 @@ diff_matrix_big_enough <- function(nInput=25){
 
 
 preload_binary_matrices <- function(nInput=25){
-  if(file.exists("binM25.rds")){
+  if(file.exists(system.file("extdata", "binM25.rds", package = "RankedCoalescent"))&file.exists(system.file("extdata", "diffM25.rds", package = "RankedCoalescent"))&file.exists(system.file("extdata", "ndiff25.rds", package = "RankedCoalescent"))){
     binM25 <- readRDS(system.file("extdata", "binM25.rds", package = "RankedCoalescent"))
     diffM25 <- readRDS(system.file("extdata", "diffM25.rds", package = "RankedCoalescent"))
     ndiff25 <- readRDS(system.file("extdata", "ndiff25.rds", package = "RankedCoalescent"))
@@ -39,6 +39,7 @@ preload_binary_matrices <- function(nInput=25){
     }
   } else {
     binM25 <- binary_matrix(nInput-2)
+    binM25 <- binM25[,ncol(binM25):1]
     ndiff25 <- rowSums(binM25)
     diffM25 <- t(apply(apply(apply(binM25,1,rev),2,cumsum),2,rev))
     gc()
