@@ -1,79 +1,52 @@
-#' bcp_coal
-#'
-#' Computes state space and transition probability matrix for the
-#' Block Counting process
-#'
-#' @param n the number of lineages at the start of the process
-#'
-#' @returns a list, the first element is the state space matrix,
-#' the second the transition probability matrix
-#' @export
+#' diff_matrix_big_enough
+#' 
+#' Tests whether the difference Matrix is loaded into the package environment and if it's big enough for its current task
+#' 
+#' @param nInput The number of leaves of the state space to create
+#' 
+#' @returns A boolean answering whether there is a big enough difference matrix stored
+#' 
 
-
-
-bcp_coal <- function(n){
-  n <- checkN(n,upper=Inf)
-  stsp <- as.data.frame(matrix(c(n,rep(0,n-1)),1))
-  rownames(stsp) <- "50000"
-  ProbM <- matrix(0,BCPssp[n],BCPssp[n])
-  oldIdxFrom <- 1
-  oldIdxTo <- 1
-  stspPerTier <- 1
-  while(sum(stsp[nrow(stsp),])>1){
-    for(oldRow in oldIdxFrom:oldIdxTo){
-      curRow <- stsp[oldRow,]
-      for(index in 1:(n-1)){
-        curVal <- curRow[index]
-        if(curVal>0){
-          if(curVal>1){
-            newRow <- curRow
-            newRow[index] <- newRow[index]-2
-            newRow[index*2] <- newRow[index*2]+1
-            checksum <- paste0(newRow,collapse="")
-            locRw <- which(checksum==rownames(stsp)[oldIdxTo:nrow(stsp)])+oldIdxTo-1
-            if(length(locRw)==0){
-              stsp <- rbind(stsp,newRow)
-              rownames(stsp)[nrow(stsp)] <- checksum
-              ProbM[oldRow,nrow(stsp)] <- exp(lchoose(as.numeric(curRow[index]),2)-lchoose(sum(curRow),2))
-
-            } else {
-              ProbM[oldRow,locRw] <- ProbM[oldRow,locRw]+exp(lchoose(as.numeric(curRow[index]),2)-lchoose(sum(curRow),2))
-            }
-
-          }
-          for(greaterIndex in (index+1):ncol(stsp)){
-            if(curRow[greaterIndex]>=1){
-              newRow <- curRow
-              newRow[index] <- newRow[index]-1
-              newRow[greaterIndex] <- newRow[greaterIndex]-1
-              newRow[index+greaterIndex] <- newRow[index+greaterIndex]+1
-              checksum <- paste0(newRow,collapse="")
-              locRw <- which(checksum==rownames(stsp)[oldIdxTo:nrow(stsp)])+oldIdxTo-1
-              if(length(locRw)==0) {
-                stsp <- rbind(stsp,newRow)
-                rownames(stsp)[nrow(stsp)] <- checksum
-                ProbM[oldRow,nrow(stsp)] <- exp((sum(log(curRow[c(index,greaterIndex)])))-lchoose(sum(curRow),2))
-              } else{
-                ProbM[oldRow,locRw] <- ProbM[oldRow,locRw]+exp((sum(log(curRow[c(index,greaterIndex)])))-lchoose(sum(curRow),2))
-              }
-            }
-          }
-        }
-      }
-    }
-    stsp <- dplyr::distinct(stsp)
-    oldIdxFrom <- oldIdxTo+1
-    oldIdxTo <- nrow(stsp)
-    # print(oldIdxTo-oldIdxFrom+1)
-    stspPerTier <- c(stspPerTier,oldIdxTo-oldIdxFrom+1)
+diff_matrix_big_enough <- function(nInput=25){
+  if(exists("binM25")&exists("diffM25")&exists("ndiff25")){
+    if(max(which(binM25[nrow(binM25),]==1))<(nInput-2)) return(FALSE)
+    return(TRUE)
   }
-  rownames(stsp)=NULL
-  # ProbM[nrow(ProbM),ncol(ProbM)] <- 1
-  ProbM <- ProbM[-nrow(ProbM),-ncol(ProbM)]
-  stsp <- stsp[-nrow(stsp),]
-  return(list(StSpM=stsp,ProbM=ProbM))
-  # return(stspPerTier)
+  return(FALSE)
 }
+
+
+
+#' preload_binary_matrices
+#' 
+#' Loads the necessary binary numbers with up to nInput-2 digits
+#' 
+#' @param nInput The number of leaves of the state space to create
+#' 
+
+
+preload_binary_matrices <- function(nInput=25){
+  if(file.exists("binM25.rds")){
+    binM25 <- readRDS(system.file("extdata", "binM25.rds", package = "RankedCoalescent"))
+    diffM25 <- readRDS(system.file("extdata", "diffM25.rds", package = "RankedCoalescent"))
+    ndiff25 <- readRDS(system.file("extdata", "ndiff25.rds", package = "RankedCoalescent"))
+    if(nInput>2){
+      maxIdx <- which(binM25[,nInput-2]==1)[1]
+      binM25 <- binM25[1:maxIdx,1:(nInput-2)]
+      diffM25 <- diffM25[1:maxIdx,1:(nInput-2)]
+      ndiff25 <- ndiff25[1:maxIdx]
+      gc()
+    }
+  } else {
+    binM25 <- binary_matrix(nInput-2)
+    ndiff25 <- rowSums(binM25)
+    diffM25 <- t(apply(apply(apply(binM25,1,rev),2,cumsum),2,rev))
+    gc()
+  }
+  return(list(binM25,diffM25,ndiff25))
+}
+
+
 
 
 #' ranked_coal
@@ -91,8 +64,18 @@ bcp_coal <- function(n){
 #' @export
 
 ranked_coal <- function(n,prob=TRUE){
+  #-----------------------------------------------------------------------
+  #-----------             Input Checks     -------------------------------------
+  #-----------------------------------------------------------------------
   prob <- toBool(prob)
   n <- checkN(n)
+  if(!diff_matrix_big_enough(nInput)){
+    a <- preload_binary_matrices(nInput)
+    binM25 <- a[[1]]
+    diffM25 <- a[[2]]
+    ndiff25 <- a[[3]]
+    rm(a);gc()
+  }
   #-----------------------------------------------------------------------
   #-----------             Setup     -------------------------------------
   #-----------------------------------------------------------------------
@@ -181,6 +164,13 @@ ranked_coal <- function(n,prob=TRUE){
 ranked_coal_list <- function(n,ChildAndProb=FALSE,TierInd=FALSE){
   ChildAndProb <- toBool(ChildAndProb); TierInd <- toBool(TierInd)
   n <- checkN(n,upper=Inf)
+  if(!diff_matrix_big_enough(nInput)){
+    a <- preload_binary_matrices(nInput)
+    binM25 <- a[[1]]
+    diffM25 <- a[[2]]
+    ndiff25 <- a[[3]]
+    rm(a);gc()
+  }
   #-----------------------------------------------------------------------
   #-----------             Setup     -------------------------------------
   #-----------------------------------------------------------------------
@@ -344,6 +334,13 @@ seq_probM_to_probM <- function(seqProb){
 
 ranked_coal_StSpM_only <- function(n){
   n <- checkN(n)
+  if(!diff_matrix_big_enough(nInput)){
+    a <- preload_binary_matrices(nInput)
+    binM25 <- a[[1]]
+    diffM25 <- a[[2]]
+    ndiff25 <- a[[3]]
+    rm(a);gc()
+  }
   #-----------------------------------------------------------------------
   #-----------             Setup     -------------------------------------
   #-----------------------------------------------------------------------
@@ -352,7 +349,6 @@ ranked_coal_StSpM_only <- function(n){
   ssm[1,1] <- n;ssm[2,1] <- n-2;ssm[2,2] <- n-1
   diag <- 3
   nextrow <- 3
-  #prevrow <- 2
   binaryM <- matrix(1,1)
   for(subVal in (n-3):1){
 
@@ -362,17 +358,12 @@ ranked_coal_StSpM_only <- function(n){
     for(i in 1:(2^(d))){
       if(ndiff25[i]<=maxDiff) indices <- c(indices,i)
     }
-    #prevBin <- binaryM
     binaryM <- binM25[indices,1:d]
     diffM <- diffM25[indices,1:d]
-    if(is.null(nrow(binaryM)))binaryM <- as.matrix(binaryM) #TODO DO NOT WASTE TIME LIKE THIS
-    ##TODO MAYBE exploit prevIndices to abuse repeatable patterns?
-    #TODO check if implication or <= is faster
+    if(is.null(nrow(binaryM)))binaryM <- as.matrix(binaryM) 
     newMat <- cbind(subVal-diffM,subVal,subVal+1,deparse.level=0)
     ssm[nextrow:(nextrow+nrow(newMat)-1),1:diag] <-   cbind(subVal-diffM,subVal,subVal+1,deparse.level=0)
 
-
-    #prevrow <- nextrow
     nextrow <- nextrow+nrow(newMat)
     diag <- diag+1
   }
@@ -383,3 +374,77 @@ ranked_coal_StSpM_only <- function(n){
 
 
 
+
+
+#' bcp_coal
+#'
+#' Computes state space and transition probability matrix for the
+#' Block Counting process
+#'
+#' @param n the number of lineages at the start of the process
+#'
+#' @returns a list, the first element is the state space matrix,
+#' the second the transition probability matrix
+#' @export
+
+
+bcp_coal <- function(n){
+  n <- checkN(n,upper=Inf)
+  stsp <- as.data.frame(matrix(c(n,rep(0,n-1)),1))
+  rownames(stsp) <- "50000"
+  ProbM <- matrix(0,BCPssp[n],BCPssp[n])
+  oldIdxFrom <- 1
+  oldIdxTo <- 1
+  stspPerTier <- 1
+  while(sum(stsp[nrow(stsp),])>1){
+    for(oldRow in oldIdxFrom:oldIdxTo){
+      curRow <- stsp[oldRow,]
+      for(index in 1:(n-1)){
+        curVal <- curRow[index]
+        if(curVal>0){
+          if(curVal>1){
+            newRow <- curRow
+            newRow[index] <- newRow[index]-2
+            newRow[index*2] <- newRow[index*2]+1
+            checksum <- paste0(newRow,collapse="")
+            locRw <- which(checksum==rownames(stsp)[oldIdxTo:nrow(stsp)])+oldIdxTo-1
+            if(length(locRw)==0){
+              stsp <- rbind(stsp,newRow)
+              rownames(stsp)[nrow(stsp)] <- checksum
+              ProbM[oldRow,nrow(stsp)] <- exp(lchoose(as.numeric(curRow[index]),2)-lchoose(sum(curRow),2))
+
+            } else {
+              ProbM[oldRow,locRw] <- ProbM[oldRow,locRw]+exp(lchoose(as.numeric(curRow[index]),2)-lchoose(sum(curRow),2))
+            }
+
+          }
+          for(greaterIndex in (index+1):ncol(stsp)){
+            if(curRow[greaterIndex]>=1){
+              newRow <- curRow
+              newRow[index] <- newRow[index]-1
+              newRow[greaterIndex] <- newRow[greaterIndex]-1
+              newRow[index+greaterIndex] <- newRow[index+greaterIndex]+1
+              checksum <- paste0(newRow,collapse="")
+              locRw <- which(checksum==rownames(stsp)[oldIdxTo:nrow(stsp)])+oldIdxTo-1
+              if(length(locRw)==0) {
+                stsp <- rbind(stsp,newRow)
+                rownames(stsp)[nrow(stsp)] <- checksum
+                ProbM[oldRow,nrow(stsp)] <- exp((sum(log(curRow[c(index,greaterIndex)])))-lchoose(sum(curRow),2))
+              } else{
+                ProbM[oldRow,locRw] <- ProbM[oldRow,locRw]+exp((sum(log(curRow[c(index,greaterIndex)])))-lchoose(sum(curRow),2))
+              }
+            }
+          }
+        }
+      }
+    }
+    stsp <- dplyr::distinct(stsp)
+    oldIdxFrom <- oldIdxTo+1
+    oldIdxTo <- nrow(stsp)
+    stspPerTier <- c(stspPerTier,oldIdxTo-oldIdxFrom+1)
+  }
+  rownames(stsp)=NULL
+  ProbM <- ProbM[-nrow(ProbM),-ncol(ProbM)]
+  stsp <- stsp[-nrow(stsp),]
+  return(list(StSpM=stsp,ProbM=ProbM))
+}
